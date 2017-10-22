@@ -268,6 +268,485 @@
   
 
   <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://www.torry.top/2017/10/22/canal-mongodb/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="torry">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="torry's blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2017/10/22/canal-mongodb/" itemprop="url">微服务MySQL分库分表数据到MongoDB同步方案</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2017-10-22T00:00:00+08:00">
+                2017-10-22
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <h2 id="需求背景"><a href="#需求背景" class="headerlink" title="需求背景"></a>需求背景</h2><p>  近年来，微服务概念持续火热，网络上针对微服务和单体架构的讨论也是越来越多，面对日益增长的业务需求是，很多公司做技术架构升级时优先选用微服务方式。我所在公司也是选的这个方向来升级技术架构，以支撑更大访问量和更方便的业务扩展。</p>
+<h2 id="发现问题"><a href="#发现问题" class="headerlink" title="发现问题"></a>发现问题</h2><p>  微服务拆分主要分两种方式：拆分业务系统不拆分数据库，拆分业务系统拆分库。如果数据规模小的话大可不必拆分数据库，因为拆分数据看必将面对多维度数据查询，跨进程之间的事务等问题。而我所在公司随着业务发展单数据库实例已经不能满足业务需要，所以选择了拆分业务系统同时拆分数据库的模式，所以也面临着以上的问题。本文主要介绍多维度数据实时查询解决方案。当前系统架构和存储结构如下：</p>
+<p>   <img src="http://ot0uzdjr7.bkt.clouddn.com/micro_mysql.png" alt="image"></p>
+<h2 id="解决思路"><a href="#解决思路" class="headerlink" title="解决思路"></a>解决思路</h2><ul>
+<li>要对多数据库数据进行查询，首先就需要将数据库同步到一起以方便查询</li>
+<li>为了满足大数据量数据需求，所以优先选择NOSQL数据库做同步库</li>
+<li>NOSQL数据库基本无法进行关联查询，所以需要将关系数据进行拼接操作，转换成非关系型数据</li>
+<li>业务多维度查询需要实时性，所以需要选择NOSQL中实时性相对比较好的数据库：MongoDB</li>
+</ul>
+<p>根据以上思路，总结数据整合架构如下图所示：</p>
+<p> <img src="http://ot0uzdjr7.bkt.clouddn.com/mysql-mongo.png" alt="image"></p>
+<h2 id="解决方案"><a href="#解决方案" class="headerlink" title="解决方案"></a>解决方案</h2><p>目前网上一些数据同步案例分两种：MQ消息同步和binlog数据读取同步</p>
+<p>先说MQ消息同步，该同步方式我所在公司试用过一段时间，发现以下问题：</p>
+<ul>
+<li>数据围绕业务进行，对业务关键性数据操作发送MQ消息，对业务系统依赖性比较高</li>
+<li>对于数据库中存量数据需要单独处理</li>
+<li>对于工具表还需要单独维护同步</li>
+<li>每次新增数据表都需要重新添加MQ逻辑</li>
+</ul>
+<p>考虑到以上问题，用MQ方式同步数据最优解决办法</p>
+<p>使用binlog 数据读取方式目前有一些成熟方案，比如tungsten replicator，但这些同步工具只能实现数据1:1复制，数据复制过程自定义逻辑添加比较麻烦，不支持分库分表数据归集操作。综上所述，最优方案应该是读取后binlog后自行处理后续数据逻辑。目前binlog读取binlog工具中最成熟的方案应该就是alibaba开源的canal了。</p>
+<h4 id="canal"><a href="#canal" class="headerlink" title="canal"></a>canal</h4><p>canal是阿里巴巴mysql数据库binlog的增量订阅&amp;消费组件 。阿里云DRDS、阿里巴巴TDDL 二级索引、小表复制. 都是基于canal做的，应用广泛。<br>canal原理相对比较简单：</p>
+<ul>
+<li>canal模拟mysql slave的交互协议，伪装自己为mysql slave，向mysql master发送dump协议</li>
+<li>mysql master收到dump请求，开始推送binary log给slave(也就是canal)</li>
+<li>canal解析binary log对象(原始为byte流)</li>
+</ul>
+<p>canal介绍： <a href="https://github.com/alibaba/canal/wiki" target="_blank" rel="external">https://github.com/alibaba/canal/wiki</a></p>
+<p>我使用的是canal的HA模式,由zookeeper选举可用实例，每个数据库一个instance,服务端配置如下：</p>
+<p>目录：</p>
+<pre><code>conf
+    database1
+        -instance.properties
+    database2
+        -instance.properties
+    canal.properties
+</code></pre><p>instance.properties</p>
+<pre><code>canal.instance.mysql.slaveId = 1001
+canal.instance.master.address = X.X.X.X:3306
+canal.instance.master.journal.name = 
+canal.instance.master.position = 
+canal.instance.master.timestamp = 
+canal.instance.dbUsername = canal
+canal.instance.dbPassword = canal
+canal.instance.defaultDatabaseName =
+canal.instance.connectionCharset = UTF-8
+canal.instance.filter.regex = .*\\..*
+canal.instance.filter.black.regex =  
+</code></pre><p>canal.properties</p>
+<pre><code>canal.id= 1
+canal.ip=X.X.X.X
+canal.port= 11111
+canal.zkServers=X.X.X.X:2181,X.X.X.X:2181,X.X.X.X:2181
+canal.zookeeper.flush.period = 1000
+canal.file.data.dir = ${canal.conf.dir}
+canal.file.flush.period = 1000
+canal.instance.memory.buffer.size = 16384
+canal.instance.memory.buffer.memunit = 1024 
+canal.instance.memory.batch.mode = MEMSIZE
+canal.instance.detecting.enable = true
+canal.instance.detecting.sql = select 1
+canal.instance.detecting.interval.time = 3
+canal.instance.detecting.retry.threshold = 3
+canal.instance.detecting.heartbeatHaEnable = false
+canal.instance.transaction.size =  1024
+canal.instance.fallbackIntervalInSeconds = 60
+canal.instance.network.receiveBufferSize = 16384
+canal.instance.network.sendBufferSize = 16384
+canal.instance.network.soTimeout = 30
+canal.instance.filter.query.dcl = true
+canal.instance.filter.query.dml = false
+canal.instance.filter.query.ddl = true
+canal.instance.filter.table.error = false
+canal.instance.filter.rows = false
+canal.instance.binlog.format = ROW,STATEMENT,MIXED 
+canal.instance.binlog.image = FULL,MINIMAL,NOBLOB
+canal.instance.get.ddl.isolation = false
+canal.destinations= example,p4-test
+canal.conf.dir = ../conf
+canal.auto.scan = true
+canal.auto.scan.interval = 5
+canal.instance.global.mode = spring 
+canal.instance.global.lazy = false
+canal.instance.global.spring.xml = classpath:spring/default-instance.xml
+</code></pre><h4 id="数据同步"><a href="#数据同步" class="headerlink" title="数据同步"></a>数据同步</h4><p>创建canal client应用订阅canal读取的binlog数据</p>
+<p>1.开启多instance 订阅,订阅多个instance</p>
+<blockquote>
+<pre><code>public void initCanalStart() {
+    List&lt;String&gt; destinations = canalProperties.getDestination();
+    final List&lt;CanalClient&gt; canalClientList = new ArrayList&lt;&gt;();
+    if (destinations != null &amp;&amp; destinations.size() &gt; 0) {
+        for (String destination : destinations) {
+            // 基于zookeeper动态获取canal server的地址，建立链接，其中一台server发生crash，可以支持failover
+            CanalConnector connector = CanalConnectors.newClusterConnector(canalProperties.getZkServers(), destination, &quot;&quot;, &quot;&quot;);
+            CanalClient client = new CanalClient(destination, connector);
+            canalClientList.add(client);
+            client.start();
+        }
+    }
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+        public void run() {
+            try {
+                logger.info(&quot;## stop the canal client&quot;);
+                for (CanalClient canalClient : canalClientList) {
+                    canalClient.stop();
+                }
+            } catch (Throwable e) {
+                logger.warn(&quot;##something goes wrong when stopping canal:&quot;, e);
+            } finally {
+                logger.info(&quot;## canal client is down.&quot;);
+            }
+        }
+    });
+}
+</code></pre></blockquote>
+<p>订阅消息处理</p>
+<blockquote>
+<pre><code>private void process() {
+    int batchSize = 5 * 1024;
+    while (running) {
+        try {
+            MDC.put(&quot;destination&quot;, destination);
+            connector.connect();
+            connector.subscribe();
+            while (running) {
+                Message message = connector.getWithoutAck(batchSize); // 获取指定数量的数据
+                long batchId = message.getId();
+                int size = message.getEntries().size();
+                if (batchId != -1 &amp;&amp; size &gt; 0) {
+                    saveEntry(message.getEntries());
+                }
+                connector.ack(batchId); // 提交确认
+                // connector.rollback(batchId); // 处理失败, 回滚数据
+            }
+        } catch (Exception e) {
+            logger.error(&quot;process error!&quot;, e);
+        } finally {
+            connector.disconnect();
+            MDC.remove(&quot;destination&quot;);
+        }
+    }
+}
+</code></pre></blockquote>
+<p>根据数据库事件处理消息,过滤消息列表，对数据变动进行处理,用到信息为：</p>
+<ul>
+<li>insert :schemaName,tableName,beforeColumnsList</li>
+<li>update :schemaName,tableName,afterColumnsList</li>
+<li>delete :schemaName,tableName,afterColumnsList</li>
+</ul>
+<blockquote>
+<pre><code>RowChange rowChage = null;
+    try {
+        rowChage = RowChange.parseFrom(entry.getStoreValue());
+    } catch (Exception e) {
+        throw new RuntimeException(&quot;parse event has an error , data:&quot; + entry.toString(), e);
+    }
+    EventType eventType = rowChage.getEventType();
+    logger.info(row_format,
+            entry.getHeader().getLogfileName(),
+            String.valueOf(entry.getHeader().getLogfileOffset()), entry.getHeader().getSchemaName(),
+            entry.getHeader().getTableName(), eventType,
+            String.valueOf(entry.getHeader().getExecuteTime()), String.valueOf(delayTime));
+    if (eventType == EventType.QUERY || rowChage.getIsDdl()) {
+        logger.info(&quot; sql ----&gt; &quot; + rowChage.getSql());
+        continue;
+    }
+    DataService dataService = SpringUtil.getBean(DataService.class);
+    for (RowData rowData : rowChage.getRowDatasList()) {
+        if (eventType == EventType.DELETE) {
+            dataService.delete(rowData.getBeforeColumnsList(), entry.getHeader().getSchemaName(), entry.getHeader().getTableName());
+        } else if (eventType == EventType.INSERT) {
+            dataService.insert(rowData.getAfterColumnsList(), entry.getHeader().getSchemaName(), entry.getHeader().getTableName());
+        } else if (eventType == EventType.UPDATE) {
+            dataService.update(rowData.getAfterColumnsList(), entry.getHeader().getSchemaName(), entry.getHeader().getTableName());
+        } else {
+            logger.info(&quot;未知数据变动类型：{}&quot;, eventType);
+        }
+    }
+}
+</code></pre></blockquote>
+<p>ColumnsList转换成MongoTemplate 可用的数据类：DBObject,顺便做下数据类型转换</p>
+<blockquote>
+<pre><code>public static DBObject columnToJson(List&lt;CanalEntry.Column&gt; columns) {
+    DBObject obj = new BasicDBObject();
+    try {
+        for (CanalEntry.Column column : columns) {
+            String mysqlType = column.getMysqlType();
+            //int类型，长度11以下为Integer，以上为long
+            if (mysqlType.startsWith(&quot;int&quot;)) {
+                int lenBegin = mysqlType.indexOf(&apos;(&apos;);
+                int lenEnd = mysqlType.indexOf(&apos;)&apos;);
+                if (lenBegin &gt; 0 &amp;&amp; lenEnd &gt; 0) {
+                    int length = Integer.parseInt(mysqlType.substring(lenBegin + 1, lenEnd));
+                    if (length &gt; 10) {
+                        obj.put(column.getName(), StringUtils.isBlank(column.getValue()) ? null : Long.parseLong(column.getValue()));
+                        continue;
+                    }
+                }
+                obj.put(column.getName(), StringUtils.isBlank(column.getValue()) ? null : Integer.parseInt(column.getValue()));
+            } else if (mysqlType.startsWith(&quot;bigint&quot;)) {
+                obj.put(column.getName(), StringUtils.isBlank(column.getValue()) ? null : Long.parseLong(column.getValue()));
+            } else if (mysqlType.startsWith(&quot;decimal&quot;)) {
+                int lenBegin = mysqlType.indexOf(&apos;(&apos;);
+                int lenCenter = mysqlType.indexOf(&apos;,&apos;);
+                int lenEnd = mysqlType.indexOf(&apos;)&apos;);
+                if (lenBegin &gt; 0 &amp;&amp; lenEnd &gt; 0 &amp;&amp; lenCenter &gt; 0) {
+                    int length = Integer.parseInt(mysqlType.substring(lenCenter + 1, lenEnd));
+                    if (length == 0) {
+                        obj.put(column.getName(), StringUtils.isBlank(column.getValue()) ? null : Long.parseLong(column.getValue()));
+                        continue;
+                    }
+                }
+                obj.put(column.getName(), StringUtils.isBlank(column.getValue()) ? null : Double.parseDouble(column.getValue()));
+            } else if (mysqlType.equals(&quot;datetime&quot;) || mysqlType.equals(&quot;timestamp&quot;)) {
+                obj.put(column.getName(), StringUtils.isBlank(column.getValue()) ? null : DATE_TIME_FORMAT.parse(column.getValue()));
+            } else if (mysqlType.equals(&quot;date&quot;)) {
+                obj.put(column.getName(), StringUtils.isBlank(column.getValue()) ? null : DATE_FORMAT.parse(column.getValue()));
+            } else if (mysqlType.equals(&quot;time&quot;)) {
+                obj.put(column.getName(), StringUtils.isBlank(column.getValue()) ? null : TIME_FORMAT.parse(column.getValue()));
+            } else {
+                obj.put(column.getName(), column.getValue());
+            }
+        }
+    } catch (ParseException e) {
+        e.printStackTrace();
+    }
+    return obj;
+}
+</code></pre></blockquote>
+<h4 id="数据拼接"><a href="#数据拼接" class="headerlink" title="数据拼接"></a>数据拼接</h4><p>我们获取了数据库数据后做拼接操作，比如两张用户表：</p>
+<pre><code>user_info:{id,user_no,user_name,user_password}
+user_other_info:{id,user_no,idcard,realname}
+</code></pre><p>拼接后mongo数据为：</p>
+<pre><code>user:{_id,user_no,userInfo:{id,user_no,user_name,user_password},userOtherInfo:{id,user_no,idcard,realname})
+</code></pre><p>接收到的数据信息很多，如何才能简单的触发数据拼接操作呢？</p>
+<p>先看我们能获取的信息:schemaName,tableName,DBObject,Event(insert,update,delete)</p>
+<p>将这些信息标识拼接起来看看:/schemaName/tableName/Event(DBObject),没错,就是一个标准的restful链接。只要我们实现一个简单的springMVC 就能自动获取需要的数据信息进行拼接操作。</p>
+<p>先实现@Controller,定义名称为Schema，value对应schemaName</p>
+<blockquote>
+<pre><code>@Target({ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Component
+public  @interface Schema {
+ String value() default &quot;&quot;;
+}
+</code></pre></blockquote>
+<p>然后实现@RequestMapping,定义名称为Table,直接使用Canal中的EventType 对应RequestMethod</p>
+<blockquote>
+<pre><code>@Target({ElementType.METHOD, ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public  @interface Table {
+    String value() default &quot;&quot;;
+    CanalEntry.EventType[] event() default {};
+}
+</code></pre></blockquote>
+<p>然后spring 加载的时候初始化两个Map:intanceMap,handlerMap</p>
+<blockquote>
+<pre><code>//库名和数据处理Bean映射Map
+private static Map&lt;String, Object&gt; instanceMap = new HashMap&lt;String, Object&gt;();
+//路劲和数据处理Method映射Map
+private static Map&lt;String, Object&gt; handlerMap = new HashMap&lt;String, Object&gt;();
+@Override
+public void setApplicationContext(ApplicationContext applicationContext) {
+    if (SpringUtil.applicationContext == null) {
+        SpringUtil.applicationContext = applicationContext;
+        //初始化instanceMap数据
+        instanceMap();
+        //初始化handlerMap数据
+        handlerMap();
+    }
+}
+private void instanceMap(){
+    Map&lt;String,Object&gt; beans = applicationContext.getBeansWithAnnotation(Schema.class);
+    for(Object bean:beans.values()){
+        Class&lt;?&gt; clazz=bean.getClass();
+        Object instance = applicationContext.getBean(clazz);
+        Schema schema =clazz.getAnnotation(Schema.class);
+        String key = schema.value();
+        instanceMap.put(key, instance);
+        logger.info(&quot;instanceMap [{}:{}]&quot;,key,bean==null?&quot;null&quot;:clazz.getName());
+    }
+}
+private void handlerMap() {
+    if (instanceMap.size() &lt;= 0)
+        return;
+    for (Map.Entry&lt;String, Object&gt; entry : instanceMap.entrySet()) {
+        if (entry.getValue().getClass().isAnnotationPresent(Schema.class)) {
+            Schema schema = entry.getValue().getClass().getAnnotation(Schema.class);
+            String schemeName = schema.value();
+            Method[] methods = entry.getValue().getClass().getMethods();
+            for (Method method : methods) {
+                if (method.isAnnotationPresent(Table.class)) {
+                    Table table = method.getAnnotation(Table.class);
+                    String tName = table.value();
+                    CanalEntry.EventType[] events = table.event();
+                    //未标明数据事件类型的方法不做映射
+                    if(events.length&lt;1){
+                        continue;
+                    }
+                    //同一个方法可以映射多张表
+                    for(int i=0;i&lt;events.length;i++){
+                        String path=&quot;/&quot; + schemeName + &quot;/&quot; + tName+&quot;/&quot;+events[i].getNumber();
+                        handlerMap.put(path, method);
+                        logger.info(&quot;handlerMap [{}:{}]&quot;,path,method.getName());
+                    }
+                } else {
+                    continue;
+                }
+            }
+        } else {
+            continue;
+        }
+    }
+}
+</code></pre></blockquote>
+<p>调用方法：</p>
+<blockquote>
+<pre><code>public static void doEvent(String path, DBObject obj) {
+    String[] pathArray=path.split(&quot;/&quot;);
+    if(pathArray.length!=4){
+        logger.info(&quot;path 格式不正确：{}&quot;,path);
+        return;
+    }
+    Method method = (Method) handlerMap.get(path);
+    Object schema = instanceMap.get(pathArray[1]);
+    //查找不到映射Bean和Method不做处理
+    if(method==null||schema==null){
+        return;
+    }
+    try {
+        method.invoke(schema, new Object[] {obj});
+    } catch (IllegalAccessException e) {
+        e.printStackTrace();
+    } catch (IllegalArgumentException e) {
+        e.printStackTrace();
+    } catch (InvocationTargetException e) {
+        e.printStackTrace();
+    }catch (Exception e){
+        e.printStackTrace();
+    }
+}
+</code></pre></blockquote>
+<p>数据拼接消息处理：</p>
+<blockquote>
+<pre><code>@Schema(&quot;demo_user&quot;)
+public class UserService {
+    @Table(value = &quot;user_info&quot;, event = {CanalEntry.EventType.INSERT, CanalEntry.EventType.UPDATE})
+    public void saveUser_UserInfo(DBObject userInfo) {
+        String userNo = userInfo.get(&quot;user_no&quot;) == null ? null : userInfo.get(&quot;user_no&quot;).toString();
+        DBCollection collection = completeMongoTemplate.getCollection(&quot;user&quot;);
+        DBObject queryObject = new BasicDBObject(&quot;user_no&quot;, userNo);
+        DBObject user = collection.findOne(queryObject);
+        if (user == null) {
+            user = new BasicDBObject();
+            user.put(&quot;user_no&quot;, userNo);
+            user.put(&quot;userInfo&quot;, userInfo);
+            collection.insert(user);
+        } else {
+            DBObject updateObj = new BasicDBObject(&quot;userInfo&quot;, userInfo);
+            DBObject update = new BasicDBObject(&quot;$set&quot;, updateObj);
+            collection.update(queryObject, update);
+        }
+    }
+}
+</code></pre></blockquote>
+<h2 id="示例源码"><a href="#示例源码" class="headerlink" title="示例源码"></a>示例源码</h2><p><a href="https://github.com/zhangtr/canal-mongo" target="_blank" rel="external">https://github.com/zhangtr/canal-mongo</a></p>
+
+          
+        
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
     <link itemprop="mainEntityOfPage" href="http://www.torry.top/2017/07/15/teedao-rbac-about/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -494,7 +973,7 @@
           
             <div class="site-state-item site-state-posts">
               <a href="/archives/">
-                <span class="site-state-item-count">1</span>
+                <span class="site-state-item-count">2</span>
                 <span class="site-state-item-name">日志</span>
               </a>
             </div>
@@ -507,7 +986,7 @@
             
             <div class="site-state-item site-state-tags">
               <a href="/tags/index.html">
-                <span class="site-state-item-count">5</span>
+                <span class="site-state-item-count">8</span>
                 <span class="site-state-item-name">标签</span>
               </a>
             </div>
