@@ -338,7 +338,7 @@
           
             <h2 id="需求背景"><a href="#需求背景" class="headerlink" title="需求背景"></a>需求背景</h2><p>  近年来，微服务概念持续火热，网络上针对微服务和单体架构的讨论也是越来越多，面对日益增长的业务需求是，很多公司做技术架构升级时优先选用微服务方式。我所在公司也是选的这个方向来升级技术架构，以支撑更大访问量和更方便的业务扩展。</p>
 <h2 id="发现问题"><a href="#发现问题" class="headerlink" title="发现问题"></a>发现问题</h2><p>  微服务拆分主要分两种方式：拆分业务系统不拆分数据库，拆分业务系统拆分库。如果数据规模小的话大可不必拆分数据库，因为拆分数据看必将面对多维度数据查询，跨进程之间的事务等问题。而我所在公司随着业务发展单数据库实例已经不能满足业务需要，所以选择了拆分业务系统同时拆分数据库的模式，所以也面临着以上的问题。本文主要介绍多维度数据实时查询解决方案。当前系统架构和存储结构如下：</p>
-<p>   <img src="http://ot0uzdjr7.bkt.clouddn.com/micro_mysql.png" alt="image"></p>
+<p>   <img src="http://www.torry.top/images//micro_mysql.png" alt="image"></p>
 <h2 id="解决思路"><a href="#解决思路" class="headerlink" title="解决思路"></a>解决思路</h2><ul>
 <li>要对多数据库数据进行查询，首先就需要将数据库同步到一起以方便查询</li>
 <li>为了满足大数据量数据需求，所以优先选择NOSQL数据库做同步库</li>
@@ -346,7 +346,7 @@
 <li>业务多维度查询需要实时性，所以需要选择NOSQL中实时性相对比较好的数据库：MongoDB</li>
 </ul>
 <p>根据以上思路，总结数据整合架构如下图所示：</p>
-<p> <img src="http://ot0uzdjr7.bkt.clouddn.com/mysql-mongo.png" alt="image"></p>
+<p> <img src="http://www.torry.top/images/mysql-mongo.png" alt="image"></p>
 <h2 id="解决方案"><a href="#解决方案" class="headerlink" title="解决方案"></a>解决方案</h2><p>目前网上一些数据同步案例分两种：MQ消息同步和binlog数据读取同步</p>
 <p>先说MQ消息同步，该同步方式我所在公司试用过一段时间，发现以下问题：</p>
 <ul>
@@ -407,7 +407,7 @@ canal.instance.network.sendBufferSize = 16384
 canal.instance.network.soTimeout = 30
 canal.instance.filter.query.dcl = true
 canal.instance.filter.query.dml = false
-canal.instance.filter.query.ddl = true
+canal.instance.filter.query.ddl = false
 canal.instance.filter.table.error = false
 canal.instance.filter.rows = false
 canal.instance.binlog.format = ROW,STATEMENT,MIXED 
@@ -420,7 +420,10 @@ canal.auto.scan.interval = 5
 canal.instance.global.mode = spring 
 canal.instance.global.lazy = false
 canal.instance.global.spring.xml = classpath:spring/default-instance.xml
-</code></pre><h4 id="数据同步"><a href="#数据同步" class="headerlink" title="数据同步"></a>数据同步</h4><p>创建canal client应用订阅canal读取的binlog数据</p>
+</code></pre><p>部署数据流如下：</p>
+<p> <img src="http://www.torry.top/images/canal-deploy.png" alt="image"></p>
+<p><strong><em>tip:</em></strong><br><em>虽然canal同时支持mixed和row类型的binlog日志，但是获取行数据时如果是mixed类型的日志则获取不到表名，所以本方案暂只支持row格式的binlog</em></p>
+<h4 id="数据同步"><a href="#数据同步" class="headerlink" title="数据同步"></a>数据同步</h4><p>创建canal client应用订阅canal读取的binlog数据</p>
 <p>1.开启多instance 订阅,订阅多个instance</p>
 <blockquote>
 <pre><code>public void initCanalStart() {
@@ -565,6 +568,7 @@ canal.instance.global.spring.xml = classpath:spring/default-instance.xml
     return obj;
 }
 </code></pre></blockquote>
+<p><strong><em>tip:</em></strong><br><em>DBObject对象如果同时用于保存原始数据和组合数据或其他数据，使用时应该深度拷贝对象生成副本，然后使用副本</em></p>
 <h4 id="数据拼接"><a href="#数据拼接" class="headerlink" title="数据拼接"></a>数据拼接</h4><p>我们获取了数据库数据后做拼接操作，比如两张用户表：</p>
 <pre><code>user_info:{id,user_no,user_name,user_password}
 user_other_info:{id,user_no,idcard,realname}
@@ -593,12 +597,13 @@ public  @interface Table {
     CanalEntry.EventType[] event() default {};
 }
 </code></pre></blockquote>
-<p>然后spring 加载的时候初始化两个Map:intanceMap,handlerMap</p>
+<p>然后创建springUtil,实现接口ApplicationContextAware，应用启动 加载的时候初始化两个Map:intanceMap,handlerMap</p>
 <blockquote>
-<pre><code>//库名和数据处理Bean映射Map
+<pre><code>private static ApplicationContext applicationContext = null;
+//库名和数据处理Bean映射Map
 private static Map&lt;String, Object&gt; instanceMap = new HashMap&lt;String, Object&gt;();
 //路劲和数据处理Method映射Map
-private static Map&lt;String, Object&gt; handlerMap = new HashMap&lt;String, Object&gt;();
+private static Map&lt;String, Method&gt; handlerMap = new HashMap&lt;String, Method&gt;();
 @Override
 public void setApplicationContext(ApplicationContext applicationContext) {
     if (SpringUtil.applicationContext == null) {
@@ -609,15 +614,15 @@ public void setApplicationContext(ApplicationContext applicationContext) {
         handlerMap();
     }
 }
-private void instanceMap(){
-    Map&lt;String,Object&gt; beans = applicationContext.getBeansWithAnnotation(Schema.class);
-    for(Object bean:beans.values()){
-        Class&lt;?&gt; clazz=bean.getClass();
+private void instanceMap() {
+    Map&lt;String, Object&gt; beans = applicationContext.getBeansWithAnnotation(Schema.class);
+    for (Object bean : beans.values()) {
+        Class&lt;?&gt; clazz = bean.getClass();
         Object instance = applicationContext.getBean(clazz);
-        Schema schema =clazz.getAnnotation(Schema.class);
+        Schema schema = clazz.getAnnotation(Schema.class);
         String key = schema.value();
         instanceMap.put(key, instance);
-        logger.info(&quot;instanceMap [{}:{}]&quot;,key,bean==null?&quot;null&quot;:clazz.getName());
+        logger.info(&quot;instanceMap [{}:{}]&quot;, key, bean == null ? &quot;null&quot; : clazz.getName());
     }
 }
 private void handlerMap() {
@@ -634,14 +639,14 @@ private void handlerMap() {
                     String tName = table.value();
                     CanalEntry.EventType[] events = table.event();
                     //未标明数据事件类型的方法不做映射
-                    if(events.length&lt;1){
+                    if (events.length &lt; 1) {
                         continue;
                     }
                     //同一个方法可以映射多张表
-                    for(int i=0;i&lt;events.length;i++){
-                        String path=&quot;/&quot; + schemeName + &quot;/&quot; + tName+&quot;/&quot;+events[i].getNumber();
+                    for (int i = 0; i &lt; events.length; i++) {
+                        String path = &quot;/&quot; + schemeName + &quot;/&quot; + tName + &quot;/&quot; + events[i].getNumber();
                         handlerMap.put(path, method);
-                        logger.info(&quot;handlerMap [{}:{}]&quot;,path,method.getName());
+                        logger.info(&quot;handlerMap [{}:{}]&quot;, path, method.getName());
                     }
                 } else {
                     continue;
@@ -650,33 +655,31 @@ private void handlerMap() {
         } else {
             continue;
         }
-    }
-}
 </code></pre></blockquote>
-<p>调用方法：</p>
+<pre><code>    }
+}
+</code></pre><p>调用方法：</p>
 <blockquote>
-<pre><code>public static void doEvent(String path, DBObject obj) {
-    String[] pathArray=path.split(&quot;/&quot;);
-    if(pathArray.length!=4){
-        logger.info(&quot;path 格式不正确：{}&quot;,path);
+<pre><code>public static void doEvent(String path, DBObject obj) throws Exception {
+    String[] pathArray = path.split(&quot;/&quot;);
+    if (pathArray.length != 4) {
+        logger.info(&quot;path 格式不正确：{}&quot;, path);
         return;
     }
-    Method method = (Method) handlerMap.get(path);
+    Method method = handlerMap.get(path);
     Object schema = instanceMap.get(pathArray[1]);
     //查找不到映射Bean和Method不做处理
-    if(method==null||schema==null){
+    if (method == null || schema == null) {
         return;
     }
     try {
-        method.invoke(schema, new Object[] {obj});
-    } catch (IllegalAccessException e) {
-        e.printStackTrace();
-    } catch (IllegalArgumentException e) {
-        e.printStackTrace();
-    } catch (InvocationTargetException e) {
-        e.printStackTrace();
-    }catch (Exception e){
-        e.printStackTrace();
+        long begin = System.currentTimeMillis();
+        logger.info(&quot;integrate data：{}，{}&quot;, path, obj);
+        method.invoke(schema, new Object[]{obj});
+        logger.info(&quot;integrate data consume: {}ms：&quot;, System.currentTimeMillis() - begin);
+    } catch (Exception e) {
+        logger.error(&quot;调用组合逻辑异常&quot;, e);
+        throw new Exception(e.getCause());
     }
 }
 </code></pre></blockquote>
