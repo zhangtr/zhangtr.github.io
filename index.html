@@ -254,6 +254,180 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.torry.top/2017/11/19/data-convert/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="torry">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="torry's blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2017/11/19/data-convert/" itemprop="url">关系型数据到非关系数据(MongoDB)转换经验总结</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2017-11-19T00:00:00+08:00">
+                2017-11-19
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>系统微服务化后不可避免的面临数据碎片问题，大量数据分散存放在不同数据库中。单库环境下的关联查询基本无法满足纷繁复杂的业务需求。数据归集处理是解决以上问题的可靠方案之一。MongoDB出色的查询性能和高实时性以及简单易用的特性使之成为数据归集的目标数据库最佳之选。</p>
+<h2 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h2><p>先来比较关系型数据库和MongoDB的优缺点：</p>
+<p>MongoDB的优势：</p>
+<ul>
+<li>mongodb是面向文档存储，存储格式类似JSON,数据操作起来比较简单和容易</li>
+<li>热数据存放内存，查询效率非常高</li>
+<li>数据之间没有耦合性，所以非常容易水平扩展。自带shard功能</li>
+<li>支持MapReduce，聚合操作性能很高</li>
+</ul>
+<p>关系型数据库的优势：</p>
+<ul>
+<li>复杂查询可以用SQL语句方便的在一个表以及多个表之间做非常复杂的数据查询。</li>
+<li>事务支持使得对于安全性能很高的数据访问要求得以实现。</li>
+</ul>
+<p>对于这两类数据库，对方的优势就是自己的弱势，反之亦然。</p>
+<p>一句话总结：mongodb满足性能需求，但不支持关联查询</p>
+<p>既然无法直接做多维度数据查询，那就需要对数据进行处理，以满足多维度查询需要。</p>
+<h2 id="转换方法"><a href="#转换方法" class="headerlink" title="转换方法"></a>转换方法</h2><h4 id="模拟案例："><a href="#模拟案例：" class="headerlink" title="模拟案例："></a>模拟案例：</h4><p>关系数据：</p>
+<pre><code>用户数据：
+user_info(id,userNo,username,realname,accountNo,age)
+user_other_info(id,userNo,otherInfo)
+账户数据：
+account_info(id,accountNo,userNo,balance,frozenAmount)
+订单数据
+order_info(id,orderNo,userNo,price,payAmount)
+</code></pre><h4 id="关联方法"><a href="#关联方法" class="headerlink" title="关联方法"></a>关联方法</h4><ol>
+<li>冗余字段关联</li>
+</ol>
+<p>如果一个数据查询需求需要查询的维度并不多，可以直接在原数据基础上拼接关联字段组成新的文档，以满足需求。比如账户数据除账户属性外还需要根据账户所属用户(username)的名称查询，账户数据转化如下：</p>
+<pre><code>account(id,accountNo,userNo,balance,frozenAmount，username)
+</code></pre><p>此种方式优点是：数据冗余比较少，数据占用空间小，存储成本较低；缺点也很明显，当数据需求变化比较多的时候，无法兼容更多需求，比如产品经理说：加个需求，按用户真实姓名(realname)查询</p>
+<ol>
+<li>多合一关联</li>
+</ol>
+<p>如果业务表水平扩展比较多，比如用户信息会根据业务分成多张一对一数据表，这样可以将不同业务的表最为子文档，按唯一标识(userNo)组合拼接到一个文档中，比如用户信息转换如下：</p>
+<pre><code>user(
+    userNo,
+    userInfo(id,userNo,username,realname,accountNo,age),
+    userOtherInfo(id,userNo,otherInfo)
+    )
+</code></pre><p>以上方式优点是业务兼容性强，数据扩展修改方便，就算是实时同步的数据乱序插入时，也能根据唯一索引可以归集到一个文档中。缺点是数据冗余较多，存储成本较高</p>
+<ol>
+<li>一合多关联</li>
+</ol>
+<p>当数据生成时，关联一些已有数据时，可以在原数据的基础上直接扩展子文档，比如订单数据转换如下：</p>
+<pre><code>order(id,orderNo,userNo,price,payAmount,
+    userInfo(id,userNo,username,realname,accountNo,age),
+    userOtherInfo(id,userNo,otherInfo)
+    )
+</code></pre><h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><ul>
+<li>所有的数据转换都是给予现有数据模型来做的，做关系数据模型设计时一定要规范化</li>
+<li>所有的数据转换都是为了满足业务需求来的，所以在做数据转换时，一定要先对业务需求有一定了解</li>
+<li>在满足需求的情况下，可以尽量减少数据关联，避免存储浪费并提高性能。在有该数据维度查询需求时才加数据关联</li>
+</ul>
+<p><strong><em>tip:</em></strong><br>以上总结是我基于mysql到mongoDB同步完数据做数据关联时总结出来的部分经验，当做非关系型数据到mongoDB做数据关联时可以根据不同数据模型和需求选择合适的转化方法。所用数据同步方案：<a href="http://www.torry.top/2017/10/22/canal-mongodb">http://www.torry.top/2017/10/22/canal-mongodb</a></p>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://www.torry.top/2017/10/22/canal-mongodb/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -976,7 +1150,7 @@ public class UserService {
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">2</span>
+                  <span class="site-state-item-count">3</span>
                   <span class="site-state-item-name">日志</span>
                 </a>
               </div>
@@ -989,7 +1163,7 @@ public class UserService {
               
               <div class="site-state-item site-state-tags">
                 <a href="/tags/index.html">
-                  <span class="site-state-item-count">8</span>
+                  <span class="site-state-item-count">9</span>
                   <span class="site-state-item-name">标签</span>
                 </a>
               </div>
