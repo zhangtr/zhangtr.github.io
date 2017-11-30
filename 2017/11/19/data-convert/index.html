@@ -81,18 +81,18 @@
 
 
 
-<meta name="description" content="概述系统微服务化后不可避免的面临数据碎片问题，大量数据分散存放在不同数据库中。单库环境下的关联查询基本无法满足纷繁复杂的业务需求。数据归集处理是解决以上问题的可靠方案之一。MongoDB出色的查询性能和高实时性以及简单易用的特性使之成为数据归集的目标数据库最佳之选。 分析先来比较关系型数据库和MongoDB的优缺点： ">
+<meta name="description" content="系统微服务化后不可避免的面临数据碎片问题，大量数据分散存放在不同数据库中。单库环境下的关联查询基本无法满足纷繁复杂的业务需求。数据归集处理是解决以上问题的可靠方案之一。MongoDB出色的查询性能和高实时性以及简单易用的特性使之成为数据归集的目标数据库最佳之选。">
 <meta name="keywords" content="mysql,mongodb,总结">
 <meta property="og:type" content="article">
 <meta property="og:title" content="关系型数据到非关系数据(MongoDB)转换经验总结">
 <meta property="og:url" content="http://www.torry.top/2017/11/19/data-convert/index.html">
 <meta property="og:site_name" content="torry&#39;s blog">
-<meta property="og:description" content="概述系统微服务化后不可避免的面临数据碎片问题，大量数据分散存放在不同数据库中。单库环境下的关联查询基本无法满足纷繁复杂的业务需求。数据归集处理是解决以上问题的可靠方案之一。MongoDB出色的查询性能和高实时性以及简单易用的特性使之成为数据归集的目标数据库最佳之选。 分析先来比较关系型数据库和MongoDB的优缺点： MongoDB的优势：  mongodb是面向文档存储，存储格式类似JSON,数">
+<meta property="og:description" content="系统微服务化后不可避免的面临数据碎片问题，大量数据分散存放在不同数据库中。单库环境下的关联查询基本无法满足纷繁复杂的业务需求。数据归集处理是解决以上问题的可靠方案之一。MongoDB出色的查询性能和高实时性以及简单易用的特性使之成为数据归集的目标数据库最佳之选。">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:updated_time" content="2017-11-19T13:37:21.011Z">
+<meta property="og:updated_time" content="2017-11-30T13:38:37.250Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="关系型数据到非关系数据(MongoDB)转换经验总结">
-<meta name="twitter:description" content="概述系统微服务化后不可避免的面临数据碎片问题，大量数据分散存放在不同数据库中。单库环境下的关联查询基本无法满足纷繁复杂的业务需求。数据归集处理是解决以上问题的可靠方案之一。MongoDB出色的查询性能和高实时性以及简单易用的特性使之成为数据归集的目标数据库最佳之选。 分析先来比较关系型数据库和MongoDB的优缺点： MongoDB的优势：  mongodb是面向文档存储，存储格式类似JSON,数">
+<meta name="twitter:description" content="系统微服务化后不可避免的面临数据碎片问题，大量数据分散存放在不同数据库中。单库环境下的关联查询基本无法满足纷繁复杂的业务需求。数据归集处理是解决以上问题的可靠方案之一。MongoDB出色的查询性能和高实时性以及简单易用的特性使之成为数据归集的目标数据库最佳之选。">
 
 
 
@@ -333,7 +333,7 @@
       
 
       
-        <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>系统微服务化后不可避免的面临数据碎片问题，大量数据分散存放在不同数据库中。单库环境下的关联查询基本无法满足纷繁复杂的业务需求。数据归集处理是解决以上问题的可靠方案之一。MongoDB出色的查询性能和高实时性以及简单易用的特性使之成为数据归集的目标数据库最佳之选。</p>
+        <p>系统微服务化后不可避免的面临数据碎片问题，大量数据分散存放在不同数据库中。单库环境下的关联查询基本无法满足纷繁复杂的业务需求。数据归集处理是解决以上问题的可靠方案之一。MongoDB出色的查询性能和高实时性以及简单易用的特性使之成为数据归集的目标数据库最佳之选。<br><a id="more"></a></p>
 <h2 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h2><p>先来比较关系型数据库和MongoDB的优缺点：</p>
 <p>MongoDB的优势：</p>
 <ul>
@@ -578,7 +578,7 @@ order_info(id,orderNo,userNo,price,payAmount)
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#概述"><span class="nav-number">1.</span> <span class="nav-text">概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#分析"><span class="nav-number">2.</span> <span class="nav-text">分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#转换方法"><span class="nav-number">3.</span> <span class="nav-text">转换方法</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#模拟案例："><span class="nav-number">3.0.1.</span> <span class="nav-text">模拟案例：</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#关联方法"><span class="nav-number">3.0.2.</span> <span class="nav-text">关联方法</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#总结"><span class="nav-number">4.</span> <span class="nav-text">总结</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#分析"><span class="nav-number">1.</span> <span class="nav-text">分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#转换方法"><span class="nav-number">2.</span> <span class="nav-text">转换方法</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#模拟案例："><span class="nav-number">2.0.1.</span> <span class="nav-text">模拟案例：</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#关联方法"><span class="nav-number">2.0.2.</span> <span class="nav-text">关联方法</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#总结"><span class="nav-number">3.</span> <span class="nav-text">总结</span></a></li></ol></div>
             
 
           </div>
@@ -630,7 +630,7 @@ order_info(id,orderNo,userNo,price,payAmount)
 
 
   <div style="display: none;">
-    <script src="//s95.cnzz.com/z_stat.php?id=1271222242&web_id=1271222242" language="JavaScript"></script>
+    <script src="https://s13.cnzz.com/z_stat.php?id=1271222242&web_id=1271222242" language="JavaScript"></script>
   </div>
 
 
@@ -774,21 +774,6 @@ order_info(id,orderNo,userNo,price,payAmount)
   
 
   
-<script>
-(function(){
-    var bp = document.createElement('script');
-    var curProtocol = window.location.protocol.split(':')[0];
-    if (curProtocol === 'https') {
-        bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';        
-    }
-    else {
-        bp.src = 'http://push.zhanzhang.baidu.com/push.js';
-    }
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(bp, s);
-})();
-</script>
-
 
   
 

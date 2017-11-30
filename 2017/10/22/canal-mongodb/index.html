@@ -81,21 +81,21 @@
 
 
 
-<meta name="description" content="需求背景  近年来，微服务概念持续火热，网络上针对微服务和单体架构的讨论也是越来越多，面对日益增长的业务需求是，很多公司做技术架构升级时优先选用微服务方式。我所在公司也是选的这个方向来升级技术架构，以支撑更大访问量和更方便的业务扩展。 发现问题  微服务拆分主要分两种方式：拆分业务系统不拆分数据库，拆分业务系统拆分库。">
+<meta name="description" content="近年来，微服务概念持续火热，网络上针对微服务和单体架构的讨论也是越来越多，面对日益增长的业务需求是，很多公司做技术架构升级时优先选用微服务方式。我所在公司也是选的这个方向来升级技术架构，以支撑更大访问量和更方便的业务扩展。">
 <meta name="keywords" content="mysql,mongodb,canal">
 <meta property="og:type" content="article">
 <meta property="og:title" content="微服务MySQL分库分表数据到MongoDB同步方案">
 <meta property="og:url" content="http://www.torry.top/2017/10/22/canal-mongodb/index.html">
 <meta property="og:site_name" content="torry&#39;s blog">
-<meta property="og:description" content="需求背景  近年来，微服务概念持续火热，网络上针对微服务和单体架构的讨论也是越来越多，面对日益增长的业务需求是，很多公司做技术架构升级时优先选用微服务方式。我所在公司也是选的这个方向来升级技术架构，以支撑更大访问量和更方便的业务扩展。 发现问题  微服务拆分主要分两种方式：拆分业务系统不拆分数据库，拆分业务系统拆分库。如果数据规模小的话大可不必拆分数据库，因为拆分数据看必将面对多维度数据查询，跨进">
+<meta property="og:description" content="近年来，微服务概念持续火热，网络上针对微服务和单体架构的讨论也是越来越多，面对日益增长的业务需求是，很多公司做技术架构升级时优先选用微服务方式。我所在公司也是选的这个方向来升级技术架构，以支撑更大访问量和更方便的业务扩展。">
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://www.torry.top/images//micro_mysql.png">
 <meta property="og:image" content="http://www.torry.top/images/mysql-mongo.png">
 <meta property="og:image" content="http://www.torry.top/images/canal-deploy.png">
-<meta property="og:updated_time" content="2017-11-16T17:49:13.657Z">
+<meta property="og:updated_time" content="2017-11-30T13:38:23.794Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="微服务MySQL分库分表数据到MongoDB同步方案">
-<meta name="twitter:description" content="需求背景  近年来，微服务概念持续火热，网络上针对微服务和单体架构的讨论也是越来越多，面对日益增长的业务需求是，很多公司做技术架构升级时优先选用微服务方式。我所在公司也是选的这个方向来升级技术架构，以支撑更大访问量和更方便的业务扩展。 发现问题  微服务拆分主要分两种方式：拆分业务系统不拆分数据库，拆分业务系统拆分库。如果数据规模小的话大可不必拆分数据库，因为拆分数据看必将面对多维度数据查询，跨进">
+<meta name="twitter:description" content="近年来，微服务概念持续火热，网络上针对微服务和单体架构的讨论也是越来越多，面对日益增长的业务需求是，很多公司做技术架构升级时优先选用微服务方式。我所在公司也是选的这个方向来升级技术架构，以支撑更大访问量和更方便的业务扩展。">
 <meta name="twitter:image" content="http://www.torry.top/images//micro_mysql.png">
 
 
@@ -337,7 +337,7 @@
       
 
       
-        <h2 id="需求背景"><a href="#需求背景" class="headerlink" title="需求背景"></a>需求背景</h2><p>  近年来，微服务概念持续火热，网络上针对微服务和单体架构的讨论也是越来越多，面对日益增长的业务需求是，很多公司做技术架构升级时优先选用微服务方式。我所在公司也是选的这个方向来升级技术架构，以支撑更大访问量和更方便的业务扩展。</p>
+        <p>  近年来，微服务概念持续火热，网络上针对微服务和单体架构的讨论也是越来越多，面对日益增长的业务需求是，很多公司做技术架构升级时优先选用微服务方式。我所在公司也是选的这个方向来升级技术架构，以支撑更大访问量和更方便的业务扩展。<br><a id="more"></a></p>
 <h2 id="发现问题"><a href="#发现问题" class="headerlink" title="发现问题"></a>发现问题</h2><p>  微服务拆分主要分两种方式：拆分业务系统不拆分数据库，拆分业务系统拆分库。如果数据规模小的话大可不必拆分数据库，因为拆分数据看必将面对多维度数据查询，跨进程之间的事务等问题。而我所在公司随着业务发展单数据库实例已经不能满足业务需要，所以选择了拆分业务系统同时拆分数据库的模式，所以也面临着以上的问题。本文主要介绍多维度数据实时查询解决方案。当前系统架构和存储结构如下：</p>
 <p>   <img src="http://www.torry.top/images//micro_mysql.png" alt="image"></p>
 <h2 id="解决思路"><a href="#解决思路" class="headerlink" title="解决思路"></a>解决思路</h2><ul>
@@ -903,7 +903,7 @@ public class UserService {
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#需求背景"><span class="nav-number">1.</span> <span class="nav-text">需求背景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#发现问题"><span class="nav-number">2.</span> <span class="nav-text">发现问题</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#解决思路"><span class="nav-number">3.</span> <span class="nav-text">解决思路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#解决方案"><span class="nav-number">4.</span> <span class="nav-text">解决方案</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#canal"><span class="nav-number">4.0.1.</span> <span class="nav-text">canal</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#数据同步"><span class="nav-number">4.0.2.</span> <span class="nav-text">数据同步</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#数据拼接"><span class="nav-number">4.0.3.</span> <span class="nav-text">数据拼接</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#示例源码"><span class="nav-number">5.</span> <span class="nav-text">示例源码</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#发现问题"><span class="nav-number">1.</span> <span class="nav-text">发现问题</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#解决思路"><span class="nav-number">2.</span> <span class="nav-text">解决思路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#解决方案"><span class="nav-number">3.</span> <span class="nav-text">解决方案</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#canal"><span class="nav-number">3.0.1.</span> <span class="nav-text">canal</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#数据同步"><span class="nav-number">3.0.2.</span> <span class="nav-text">数据同步</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#数据拼接"><span class="nav-number">3.0.3.</span> <span class="nav-text">数据拼接</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#示例源码"><span class="nav-number">4.</span> <span class="nav-text">示例源码</span></a></li></ol></div>
             
 
           </div>
@@ -955,7 +955,7 @@ public class UserService {
 
 
   <div style="display: none;">
-    <script src="//s95.cnzz.com/z_stat.php?id=1271222242&web_id=1271222242" language="JavaScript"></script>
+    <script src="https://s13.cnzz.com/z_stat.php?id=1271222242&web_id=1271222242" language="JavaScript"></script>
   </div>
 
 
@@ -1099,21 +1099,6 @@ public class UserService {
   
 
   
-<script>
-(function(){
-    var bp = document.createElement('script');
-    var curProtocol = window.location.protocol.split(':')[0];
-    if (curProtocol === 'https') {
-        bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';        
-    }
-    else {
-        bp.src = 'http://push.zhanzhang.baidu.com/push.js';
-    }
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(bp, s);
-})();
-</script>
-
 
   
 
